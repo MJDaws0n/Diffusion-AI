@@ -33,23 +33,32 @@ py -m venv .venv
 pip install -r requirements.txt
 ```
 
-## Make Data
+## Get Training Data
+
+There is no dataset download.
+
+The training data is made locally by `diffusion_chatbot.make_data`. It writes `data/pairs.tsv`, which is ignored by git because it can be large.
+
+After pulling the repo on another machine:
 
 ```bash
+git pull
 python -m diffusion_chatbot.make_data --out data/pairs.tsv --n 100000 --seed 7
 ```
 
-For cleaner training loss, use one reply per exact prompt:
+Use this if you want cleaner loss and less prompt confusion:
 
 ```bash
 python -m diffusion_chatbot.make_data --out data/pairs.tsv --n 12000 --seed 7 --stable-prompts
 ```
 
-For even more rows with repeated patterns:
+Use this if you want more rows, with repeated patterns allowed:
 
 ```bash
 python -m diffusion_chatbot.make_data --out data/pairs.tsv --n 200000 --seed 7 --allow-duplicates
 ```
+
+The small `data/sample_pairs.tsv` file is only for tests and dry runs.
 
 ## Train
 
