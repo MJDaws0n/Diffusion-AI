@@ -76,6 +76,32 @@ The small `data/sample_pairs.tsv` file is only for tests and dry runs.
 python -m diffusion_chatbot.train --data data/pairs.tsv --out runs/basic --steps 20000 --batch-size 128 --lr 0.001 --vocab-size 4096 --max-prompt-tokens 40 --max-response-tokens 40
 ```
 
+## Download And Train
+
+One command can pull Hugging Face data and train:
+
+```bash
+python -m diffusion_chatbot.train_hf --source dailydialog --out runs/basic
+```
+
+Mixed DailyDialog + Dolly:
+
+```bash
+python -m diffusion_chatbot.train_hf --source both --out runs/basic
+```
+
+Custom Hugging Face JSONL dataset:
+
+```bash
+python -m diffusion_chatbot.train_hf --hf-dataset databricks/databricks-dolly-15k --hf-file databricks-dolly-15k.jsonl --format jsonl --prompt-field instruction --response-field response --out runs/basic
+```
+
+Test the full pipeline without training:
+
+```bash
+python -m diffusion_chatbot.train_hf --source dailydialog --max-pairs 128 --dry-run
+```
+
 ## Preview Diffusion
 
 ```bash

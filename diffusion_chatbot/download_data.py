@@ -19,27 +19,90 @@ def main(argv=None):
     parser.add_argument("--max-pairs", type=int, default=0, help="0 means no limit.")
     parser.add_argument("--split", choices=["train", "validation", "test", "all"], default="train")
     parser.add_argument("--all-adjacent", action="store_true", help="Use every adjacent dialogue turn, not only user->system.")
+    parser.add_argument("--hf-dataset", help="Hugging Face dataset repo id, such as databricks/databricks-dolly-15k.")
+    parser.add_argument("--hf-file", help="File path inside the Hugging Face dataset repo.")
+    parser.add_argument("--revision", default="main")
+    parser.add_argument("--format", choices=["dailydialog", "dolly", "jsonl"], help="Converter for --hf-dataset/--hf-file.")
+    parser.add_argument("--prompt-field", default="instruction")
+    parser.add_argument("--response-field", default="response")
+    parser.add_argument("--context-field", default="")
     args = parser.parse_args(argv)
 
-    os.makedirs(args.cache_dir, exist_ok=True)
+    pairs = download_and_convert(
+        source=args.source,
+        out=args.out,
+        cache_dir=args.cache_dir,
+        max_pairs=args.max_pairs,
+        split=args.split,
+        all_adjacent=args.all_adjacent,
+        hf_dataset=args.hf_dataset,
+        hf_file=args.hf_file,
+        revision=args.revision,
+        data_format=args.format,
+        prompt_field=args.prompt_field,
+        response_field=args.response_field,
+        context_field=args.context_field,
+    )
+    print(f"wrote {len(pairs)} pairs to {args.out}")
+
+
+def download_and_convert(
+    source="dailydialog",
+    out="data/pairs.tsv",
+    cache_dir="data/raw",
+    max_pairs=0,
+    split="train",
+    all_adjacent=False,
+    hf_dataset=None,
+    hf_file=None,
+    revision="main",
+    data_format=None,
+    prompt_field="instruction",
+    response_field="response",
+    context_field="",
+):
+    os.makedirs(cache_dir, exist_ok=True)
     pairs = []
 
-    if args.source in {"dailydialog", "both"}:
-        path = os.path.join(args.cache_dir, "dailydialog_data.zip")
-        download(DAILYDIALOG_URL, path)
-        pairs.extend(load_dailydialog(path, split=args.split, user_to_system_only=not args.all_adjacent))
+    if hf_dataset or hf_file:
+        if not hf_dataset or not hf_file or not data_format:
+            raise ValueError("--hf-dataset, --hf-file, and --format are required together")
+        path = download_hf_file(hf_dataset, hf_file, cache_dir=cache_dir, revision=revision)
+        pairs.extend(load_by_format(
+            path,
+            data_format=data_format,
+            split=split,
+            all_adjacent=all_adjacent,
+            prompt_field=prompt_field,
+            response_field=response_field,
+            context_field=context_field,
+        ))
+    else:
+        if source in {"dailydialog", "both"}:
+            path = os.path.join(cache_dir, "dailydialog_data.zip")
+            download(DAILYDIALOG_URL, path)
+            pairs.extend(load_dailydialog(path, split=split, user_to_system_only=not all_adjacent))
 
-    if args.source in {"dolly", "both"}:
-        path = os.path.join(args.cache_dir, "databricks-dolly-15k.jsonl")
-        download(DOLLY_URL, path)
-        pairs.extend(load_dolly(path))
+        if source in {"dolly", "both"}:
+            path = os.path.join(cache_dir, "databricks-dolly-15k.jsonl")
+            download(DOLLY_URL, path)
+            pairs.extend(load_dolly(path))
 
     pairs = dedupe_pairs(pairs)
-    if args.max_pairs and args.max_pairs > 0:
-        pairs = pairs[: args.max_pairs]
+    if max_pairs and max_pairs > 0:
+        pairs = pairs[:max_pairs]
 
-    write_pairs(args.out, pairs)
-    print(f"wrote {len(pairs)} pairs to {args.out}")
+    write_pairs(out, pairs)
+    return pairs
+
+
+def download_hf_file(repo_id, filename, cache_dir="data/raw", revision="main"):
+    safe_repo = repo_id.replace("/", "__")
+    safe_name = filename.replace("/", "__")
+    path = os.path.join(cache_dir, f"{safe_repo}__{safe_name}")
+    url = f"https://huggingface.co/datasets/{repo_id}/resolve/{revision}/{filename}"
+    download(url, path)
+    return path
 
 
 def download(url, path):
@@ -54,6 +117,22 @@ def download(url, path):
                 break
             dst.write(chunk)
     print(f"saved {path}")
+
+
+def load_by_format(path, data_format, split="train", all_adjacent=False, prompt_field="instruction", response_field="response", context_field=""):
+    if data_format == "dailydialog":
+        return load_dailydialog(path, split=split, user_to_system_only=not all_adjacent)
+    if data_format == "dolly":
+        return load_dolly(path)
+    if data_format == "jsonl":
+        with open(path, "r", encoding="utf-8") as f:
+            return pairs_from_jsonl_lines(
+                f,
+                prompt_field=prompt_field,
+                response_field=response_field,
+                context_field=context_field,
+            )
+    raise ValueError(f"Unsupported format: {data_format}")
 
 
 def load_dailydialog(path, split="train", user_to_system_only=True):
@@ -101,6 +180,34 @@ def pairs_from_dolly_lines(lines):
         if is_good_pair(prompt, response):
             pairs.append((prompt, response))
     return pairs
+
+
+def pairs_from_jsonl_lines(lines, prompt_field="instruction", response_field="response", context_field=""):
+    pairs = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        record = json.loads(line)
+        prompt = clean_text(get_nested_field(record, prompt_field))
+        response = clean_text(get_nested_field(record, response_field))
+        context = clean_text(get_nested_field(record, context_field)) if context_field else ""
+        if context:
+            prompt = f"{prompt} {context}"
+        if is_good_pair(prompt, response):
+            pairs.append((prompt, response))
+    return pairs
+
+
+def get_nested_field(record, path):
+    value = record
+    for part in path.split("."):
+        if not part:
+            continue
+        if not isinstance(value, dict):
+            return ""
+        value = value.get(part, "")
+    return value
 
 
 def clean_text(text):
