@@ -13,18 +13,21 @@ def softmax(logits):
 
 
 class AdamW:
-    def __init__(self, params, lr=3e-3, beta1=0.9, beta2=0.999, eps=1e-8, weight_decay=1e-4):
+    def __init__(self, params, lr=3e-3, beta1=0.9, beta2=0.999, eps=1e-8, weight_decay=1e-4, grad_clip=1.0):
         self.lr = float(lr)
         self.beta1 = float(beta1)
         self.beta2 = float(beta2)
         self.eps = float(eps)
         self.weight_decay = float(weight_decay)
+        self.grad_clip = float(grad_clip) if grad_clip else 0.0
         self.t = 0
         self.m = {name: np.zeros_like(value) for name, value in params.items()}
         self.v = {name: np.zeros_like(value) for name, value in params.items()}
 
     def step(self, params, grads):
         self.t += 1
+        if self.grad_clip > 0:
+            grads = clip_grad_norm(grads, self.grad_clip)
         for name, param in params.items():
             grad = grads[name]
             if self.weight_decay:
@@ -34,6 +37,17 @@ class AdamW:
             m_hat = self.m[name] / (1.0 - self.beta1 ** self.t)
             v_hat = self.v[name] / (1.0 - self.beta2 ** self.t)
             param -= self.lr * m_hat / (np.sqrt(v_hat) + self.eps)
+
+
+def clip_grad_norm(grads, max_norm):
+    total_sq = 0.0
+    for grad in grads.values():
+        total_sq += float(np.sum(grad * grad))
+    total_norm = np.sqrt(total_sq)
+    if total_norm <= max_norm or total_norm == 0.0:
+        return grads
+    scale = max_norm / (total_norm + 1e-12)
+    return {name: grad * scale for name, grad in grads.items()}
 
 
 class SimpleDenoiser:
@@ -46,7 +60,7 @@ class SimpleDenoiser:
         e = config.embed_dim
         h = config.hidden_dim
         v = config.vocab_size
-        x = e * 4
+        x = e * 7
         scale = 0.02
         self.token_embedding = rng.normal(0.0, scale, size=(v, e)).astype(np.float32)
         self.position_embedding = rng.normal(0.0, scale, size=(config.max_response_tokens, e)).astype(np.float32)
@@ -79,13 +93,31 @@ class SimpleDenoiser:
         prompt_mean = (prompt_emb_tokens * prompt_valid[..., None]).sum(axis=1) / prompt_counts
 
         response_emb = self.token_embedding[noisy_response_ids]
+        visible = (noisy_response_ids != self.pad_id) & (noisy_response_ids != self.mask_id)
+        visible_counts = np.maximum(visible.sum(axis=1, keepdims=True), 1)
+        visible_mean = (response_emb * visible[..., None]).sum(axis=1) / visible_counts
+        visible_context = np.broadcast_to(visible_mean[:, None, :], response_emb.shape)
+
+        left_context = np.zeros_like(response_emb)
+        left_visible = np.zeros_like(visible)
+        left_context[:, 1:, :] = response_emb[:, :-1, :] * visible[:, :-1, None]
+        left_visible[:, 1:] = visible[:, :-1]
+
+        right_context = np.zeros_like(response_emb)
+        right_visible = np.zeros_like(visible)
+        right_context[:, :-1, :] = response_emb[:, 1:, :] * visible[:, 1:, None]
+        right_visible[:, :-1] = visible[:, 1:]
+
         position_emb = self.position_embedding[np.arange(response_len)][None, :, :]
         position_emb = np.broadcast_to(position_emb, response_emb.shape)
         time_emb = self.time_embedding[timesteps][:, None, :]
         time_emb = np.broadcast_to(time_emb, response_emb.shape)
         prompt_context = np.broadcast_to(prompt_mean[:, None, :], response_emb.shape)
 
-        x = np.concatenate([response_emb, position_emb, time_emb, prompt_context], axis=-1)
+        x = np.concatenate(
+            [response_emb, position_emb, time_emb, prompt_context, visible_context, left_context, right_context],
+            axis=-1,
+        )
         z1 = x @ self.w1 + self.b1
         hidden = np.tanh(z1)
         logits = hidden @ self.w2 + self.b2
@@ -95,6 +127,10 @@ class SimpleDenoiser:
             "timesteps": timesteps,
             "prompt_valid": prompt_valid,
             "prompt_counts": prompt_counts,
+            "visible": visible,
+            "visible_counts": visible_counts,
+            "left_visible": left_visible,
+            "right_visible": right_visible,
             "x": x,
             "hidden": hidden,
         }
@@ -134,10 +170,29 @@ class SimpleDenoiser:
         d_position = dx[..., e : 2 * e]
         d_time = dx[..., 2 * e : 3 * e]
         d_prompt = dx[..., 3 * e : 4 * e]
+        d_visible_context = dx[..., 4 * e : 5 * e]
+        d_left_context = dx[..., 5 * e : 6 * e]
+        d_right_context = dx[..., 6 * e : 7 * e]
 
         np.add.at(grads["token_embedding"], cache["noisy_response_ids"], d_response)
         grads["position_embedding"][: d_position.shape[1]] += d_position.sum(axis=0)
         np.add.at(grads["time_embedding"], cache["timesteps"], d_time.sum(axis=1))
+
+        d_visible_mean = d_visible_context.sum(axis=1) / cache["visible_counts"]
+        for row in range(cache["noisy_response_ids"].shape[0]):
+            visible_ids = cache["noisy_response_ids"][row, cache["visible"][row]]
+            if len(visible_ids):
+                np.add.at(grads["token_embedding"], visible_ids, d_visible_mean[row])
+
+            left_target_ids = cache["noisy_response_ids"][row, :-1][cache["left_visible"][row, 1:]]
+            left_grads = d_left_context[row, 1:][cache["left_visible"][row, 1:]]
+            if len(left_target_ids):
+                np.add.at(grads["token_embedding"], left_target_ids, left_grads)
+
+            right_target_ids = cache["noisy_response_ids"][row, 1:][cache["right_visible"][row, :-1]]
+            right_grads = d_right_context[row, :-1][cache["right_visible"][row, :-1]]
+            if len(right_target_ids):
+                np.add.at(grads["token_embedding"], right_target_ids, right_grads)
 
         prompt_grad = d_prompt.sum(axis=1) / cache["prompt_counts"]
         for row in range(cache["prompt_ids"].shape[0]):

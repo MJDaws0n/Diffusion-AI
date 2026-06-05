@@ -1,7 +1,7 @@
 import numpy as np
 
 from diffusion_chatbot.config import ModelConfig
-from diffusion_chatbot.model import SimpleDenoiser
+from diffusion_chatbot.model import SimpleDenoiser, clip_grad_norm
 
 
 def test_model_loss_and_grads_are_finite():
@@ -16,3 +16,9 @@ def test_model_loss_and_grads_are_finite():
     assert np.isfinite(loss)
     assert set(grads) == set(model.params())
     assert all(np.all(np.isfinite(value)) for value in grads.values())
+
+
+def test_gradient_clip_limits_norm():
+    grads = {"a": np.asarray([3.0, 4.0], dtype=np.float32)}
+    clipped = clip_grad_norm(grads, max_norm=1.0)
+    assert np.linalg.norm(clipped["a"]) <= 1.0001

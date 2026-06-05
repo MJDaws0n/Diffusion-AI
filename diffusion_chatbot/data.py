@@ -87,7 +87,7 @@ QUESTION_WORDS = ["why", "how", "when", "where", "what"]
 MODES = ["slowly", "quickly", "carefully", "simply", "clearly", "again", "from scratch"]
 
 
-def generate_pairs(n=50000, seed=7, unique=True):
+def generate_pairs(n=50000, seed=7, unique=True, stable_prompts=False):
     rng = random.Random(seed)
     builders = [
         _greeting_pair,
@@ -123,14 +123,18 @@ def generate_pairs(n=50000, seed=7, unique=True):
     ]
     pairs = []
     seen = set()
+    seen_prompts = set()
     attempts = 0
     max_attempts = max(n * 20, 1000)
     while len(pairs) < n and attempts < max_attempts:
         attempts += 1
         pair = rng.choice(builders)(rng)
+        if stable_prompts and pair[0] in seen_prompts:
+            continue
         if unique and pair in seen:
             continue
         seen.add(pair)
+        seen_prompts.add(pair[0])
         pairs.append(pair)
     return pairs
 

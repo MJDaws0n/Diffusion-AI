@@ -17,6 +17,7 @@ def main(argv=None):
     parser.add_argument("--steps", type=int, default=5000)
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--lr", type=float, default=3e-3)
+    parser.add_argument("--grad-clip", type=float, default=1.0)
     parser.add_argument("--vocab-size", type=int, default=1024)
     parser.add_argument("--max-prompt-tokens", type=int, default=24)
     parser.add_argument("--max-response-tokens", type=int, default=18)
@@ -69,7 +70,7 @@ def main(argv=None):
         return
 
     os.makedirs(args.out, exist_ok=True)
-    opt = AdamW(model.params(), lr=args.lr)
+    opt = AdamW(model.params(), lr=args.lr, grad_clip=args.grad_clip)
     started = time.time()
     ema_loss = None
 

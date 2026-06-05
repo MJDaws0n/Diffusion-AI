@@ -39,7 +39,13 @@ pip install -r requirements.txt
 python -m diffusion_chatbot.make_data --out data/pairs.tsv --n 100000 --seed 7
 ```
 
-For even more rows with some repeated patterns:
+For cleaner training loss, use one reply per exact prompt:
+
+```bash
+python -m diffusion_chatbot.make_data --out data/pairs.tsv --n 12000 --seed 7 --stable-prompts
+```
+
+For even more rows with repeated patterns:
 
 ```bash
 python -m diffusion_chatbot.make_data --out data/pairs.tsv --n 200000 --seed 7 --allow-duplicates
@@ -48,7 +54,7 @@ python -m diffusion_chatbot.make_data --out data/pairs.tsv --n 200000 --seed 7 -
 ## Train
 
 ```bash
-python -m diffusion_chatbot.train --data data/pairs.tsv --out runs/basic --steps 8000 --batch-size 64
+python -m diffusion_chatbot.train --data data/pairs.tsv --out runs/basic --steps 12000 --batch-size 128 --lr 0.0015
 ```
 
 ## Preview Diffusion
