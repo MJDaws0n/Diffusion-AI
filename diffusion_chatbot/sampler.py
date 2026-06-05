@@ -23,12 +23,14 @@ def sample_response(model, tokenizer, prompt, rng=None, temperature=1.0, top_k=1
         ranked = masked_positions[np.argsort(-confidence[masked_positions])]
         commit_positions = ranked[:commit_count]
         response[commit_positions] = sampled[commit_positions]
+        _clear_after_first_eos(response, tokenizer)
         stages.append((timestep - 1, response.copy()))
 
     if np.any(response == tokenizer.mask_id):
         logits = model.predict_logits(prompt_ids, response[None, :], 0)[0]
         sampled, _confidence = choose_tokens(logits, rng, temperature=temperature, top_k=top_k)
         response[response == tokenizer.mask_id] = sampled[response == tokenizer.mask_id]
+        _clear_after_first_eos(response, tokenizer)
 
     text = tokenizer.decode_ids(response, stop_at_eos=True, skip_special=True)
     if show_steps:
@@ -69,11 +71,24 @@ def _softmax_confidence(logits, ids):
 def format_stage(tokenizer, ids):
     visible = []
     for token in tokenizer.tokens_from_ids(ids):
+        if token == "[PAD]":
+            continue
         if token in SPECIAL_TOKENS:
             visible.append(token)
         else:
             visible.append(token)
+        if token == "[EOS]":
+            break
     return " ".join(visible)
+
+
+def _clear_after_first_eos(response, tokenizer):
+    eos_positions = np.flatnonzero(response == tokenizer.eos_id)
+    if len(eos_positions) == 0:
+        return
+    first_eos = int(eos_positions[0])
+    if first_eos + 1 < len(response):
+        response[first_eos + 1 :] = tokenizer.pad_id
 
 
 def final_stage_lines(tokenizer, stages):

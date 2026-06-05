@@ -36,13 +36,19 @@ pip install -r requirements.txt
 ## Make Data
 
 ```bash
-python -m diffusion_chatbot.make_data --out data/pairs.tsv --n 50000 --seed 7
+python -m diffusion_chatbot.make_data --out data/pairs.tsv --n 100000 --seed 7
+```
+
+For even more rows with some repeated patterns:
+
+```bash
+python -m diffusion_chatbot.make_data --out data/pairs.tsv --n 200000 --seed 7 --allow-duplicates
 ```
 
 ## Train
 
 ```bash
-python -m diffusion_chatbot.train --data data/pairs.tsv --out runs/basic --steps 5000 --batch-size 64
+python -m diffusion_chatbot.train --data data/pairs.tsv --out runs/basic --steps 8000 --batch-size 64
 ```
 
 ## Preview Diffusion
