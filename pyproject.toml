@@ -1,0 +1,18 @@
+[project]
+name = "diffusion-chatbot"
+version = "0.1.0"
+description = "Pure NumPy masked-diffusion toy chatbot."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "numpy>=1.24,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
