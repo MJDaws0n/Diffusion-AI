@@ -35,27 +35,37 @@ pip install -r requirements.txt
 
 ## Get Training Data
 
-There is no dataset download.
+Best option: download real online dialogue data.
 
-The training data is made locally by `diffusion_chatbot.make_data`. It writes `data/pairs.tsv`, which is ignored by git because it can be large.
-
-After pulling the repo on another machine:
+This downloads DailyDialog from Hugging Face and converts dialogue turns into `data/pairs.tsv`:
 
 ```bash
-git pull
+python -m diffusion_chatbot.download_data --source dailydialog --out data/pairs.tsv
+```
+
+For more instruction-style question/answer data too:
+
+```bash
+python -m diffusion_chatbot.download_data --source both --out data/pairs.tsv
+```
+
+Raw downloads are cached in `data/raw/`. `data/pairs.tsv` and `data/raw/` are ignored by git because they can be large.
+
+Sources:
+
+- DailyDialog via Hugging Face `ConvLab/dailydialog`, CC BY-NC-SA 4.0.
+- Databricks Dolly 15k via Hugging Face, CC BY-SA 3.0.
+
+Fallback synthetic data still exists:
+
+```bash
 python -m diffusion_chatbot.make_data --out data/pairs.tsv --n 100000 --seed 7
 ```
 
-Use this if you want cleaner loss and less prompt confusion:
+Cleaner synthetic data:
 
 ```bash
 python -m diffusion_chatbot.make_data --out data/pairs.tsv --n 12000 --seed 7 --stable-prompts
-```
-
-Use this if you want more rows, with repeated patterns allowed:
-
-```bash
-python -m diffusion_chatbot.make_data --out data/pairs.tsv --n 200000 --seed 7 --allow-duplicates
 ```
 
 The small `data/sample_pairs.tsv` file is only for tests and dry runs.
@@ -63,7 +73,7 @@ The small `data/sample_pairs.tsv` file is only for tests and dry runs.
 ## Train
 
 ```bash
-python -m diffusion_chatbot.train --data data/pairs.tsv --out runs/basic --steps 12000 --batch-size 128 --lr 0.0015
+python -m diffusion_chatbot.train --data data/pairs.tsv --out runs/basic --steps 20000 --batch-size 128 --lr 0.001 --vocab-size 4096 --max-prompt-tokens 40 --max-response-tokens 40
 ```
 
 ## Preview Diffusion
