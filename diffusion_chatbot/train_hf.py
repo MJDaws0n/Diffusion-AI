@@ -7,14 +7,14 @@ from .train import main as train_main
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Download Hugging Face data and train the chatbot.")
 
-    parser.add_argument("--source", choices=["dailydialog", "dolly", "both"], default="dailydialog")
+    parser.add_argument("--source", default="ConvLab/dailydialog", help="Dataset alias or Hugging Face repo id.")
     parser.add_argument("--pairs-out", default="data/pairs.tsv")
     parser.add_argument("--cache-dir", default="data/raw")
     parser.add_argument("--max-pairs", type=int, default=0)
     parser.add_argument("--split", choices=["train", "validation", "test", "all"], default="train")
     parser.add_argument("--all-adjacent", action="store_true")
 
-    parser.add_argument("--hf-dataset", help="Hugging Face dataset repo id for a custom dataset.")
+    parser.add_argument("--hf-dataset", help="Deprecated alias for --source with a Hugging Face repo id.")
     parser.add_argument("--hf-file", help="File path inside the custom HF dataset repo.")
     parser.add_argument("--revision", default="main")
     parser.add_argument("--format", choices=["dailydialog", "dolly", "jsonl"])

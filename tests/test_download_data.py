@@ -1,6 +1,6 @@
 import json
 
-from diffusion_chatbot.download_data import pairs_from_dailydialog, pairs_from_dolly_lines, pairs_from_jsonl_lines
+from diffusion_chatbot.download_data import pairs_from_dailydialog, pairs_from_dolly_lines, pairs_from_jsonl_lines, resolve_source
 
 
 def test_daily_dialog_parser_uses_user_to_system_pairs():
@@ -41,3 +41,17 @@ def test_generic_jsonl_parser_uses_configured_fields():
         context_field="meta.context",
     )
     assert pairs == [("How are you? Short reply.", "I am okay.")]
+
+
+def test_resolve_source_accepts_hugging_face_repo_name():
+    spec = resolve_source("ConvLab/dailydialog")
+    assert spec["repo_id"] == "ConvLab/dailydialog"
+    assert spec["file"] == "data.zip"
+    assert spec["format"] == "dailydialog"
+
+
+def test_resolve_source_accepts_custom_hugging_face_repo_name():
+    spec = resolve_source("owner/my-dataset", hf_file="pairs.jsonl", data_format="jsonl")
+    assert spec["repo_id"] == "owner/my-dataset"
+    assert spec["file"] == "pairs.jsonl"
+    assert spec["format"] == "jsonl"

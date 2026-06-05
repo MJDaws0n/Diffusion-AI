@@ -9,18 +9,44 @@ import zipfile
 
 DAILYDIALOG_URL = "https://huggingface.co/datasets/ConvLab/dailydialog/resolve/main/data.zip"
 DOLLY_URL = "https://huggingface.co/datasets/databricks/databricks-dolly-15k/resolve/main/databricks-dolly-15k.jsonl"
+KNOWN_HF_SOURCES = {
+    "dailydialog": {
+        "repo_id": "ConvLab/dailydialog",
+        "file": "data.zip",
+        "format": "dailydialog",
+        "cache_name": "dailydialog_data.zip",
+    },
+    "convlab/dailydialog": {
+        "repo_id": "ConvLab/dailydialog",
+        "file": "data.zip",
+        "format": "dailydialog",
+        "cache_name": "dailydialog_data.zip",
+    },
+    "dolly": {
+        "repo_id": "databricks/databricks-dolly-15k",
+        "file": "databricks-dolly-15k.jsonl",
+        "format": "dolly",
+        "cache_name": "databricks-dolly-15k.jsonl",
+    },
+    "databricks/databricks-dolly-15k": {
+        "repo_id": "databricks/databricks-dolly-15k",
+        "file": "databricks-dolly-15k.jsonl",
+        "format": "dolly",
+        "cache_name": "databricks-dolly-15k.jsonl",
+    },
+}
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Download and convert online chatbot data to TSV.")
-    parser.add_argument("--source", choices=["dailydialog", "dolly", "both"], default="dailydialog")
+    parser.add_argument("--source", default="ConvLab/dailydialog", help="Dataset alias or Hugging Face repo id.")
     parser.add_argument("--out", default="data/pairs.tsv")
     parser.add_argument("--cache-dir", default="data/raw")
     parser.add_argument("--max-pairs", type=int, default=0, help="0 means no limit.")
     parser.add_argument("--split", choices=["train", "validation", "test", "all"], default="train")
     parser.add_argument("--all-adjacent", action="store_true", help="Use every adjacent dialogue turn, not only user->system.")
-    parser.add_argument("--hf-dataset", help="Hugging Face dataset repo id, such as databricks/databricks-dolly-15k.")
-    parser.add_argument("--hf-file", help="File path inside the Hugging Face dataset repo.")
+    parser.add_argument("--hf-dataset", help="Deprecated alias for --source with a Hugging Face repo id.")
+    parser.add_argument("--hf-file", help="File path inside the Hugging Face dataset repo for custom sources.")
     parser.add_argument("--revision", default="main")
     parser.add_argument("--format", choices=["dailydialog", "dolly", "jsonl"], help="Converter for --hf-dataset/--hf-file.")
     parser.add_argument("--prompt-field", default="instruction")
@@ -47,7 +73,7 @@ def main(argv=None):
 
 
 def download_and_convert(
-    source="dailydialog",
+    source="ConvLab/dailydialog",
     out="data/pairs.tsv",
     cache_dir="data/raw",
     max_pairs=0,
@@ -63,30 +89,33 @@ def download_and_convert(
 ):
     os.makedirs(cache_dir, exist_ok=True)
     pairs = []
+    source = hf_dataset or source
 
-    if hf_dataset or hf_file:
-        if not hf_dataset or not hf_file or not data_format:
-            raise ValueError("--hf-dataset, --hf-file, and --format are required together")
-        path = download_hf_file(hf_dataset, hf_file, cache_dir=cache_dir, revision=revision)
+    if source == "both":
+        for source_name in ("ConvLab/dailydialog", "databricks/databricks-dolly-15k"):
+            spec = resolve_source(source_name, hf_file=None, data_format=None)
+            path = download_source(spec, cache_dir=cache_dir, revision=revision)
+            pairs.extend(load_by_format(
+                path,
+                data_format=spec["format"],
+                split=split,
+                all_adjacent=all_adjacent,
+                prompt_field=prompt_field,
+                response_field=response_field,
+                context_field=context_field,
+            ))
+    else:
+        spec = resolve_source(source, hf_file=hf_file, data_format=data_format)
+        path = download_source(spec, cache_dir=cache_dir, revision=revision)
         pairs.extend(load_by_format(
             path,
-            data_format=data_format,
+            data_format=spec["format"],
             split=split,
             all_adjacent=all_adjacent,
             prompt_field=prompt_field,
             response_field=response_field,
             context_field=context_field,
         ))
-    else:
-        if source in {"dailydialog", "both"}:
-            path = os.path.join(cache_dir, "dailydialog_data.zip")
-            download(DAILYDIALOG_URL, path)
-            pairs.extend(load_dailydialog(path, split=split, user_to_system_only=not all_adjacent))
-
-        if source in {"dolly", "both"}:
-            path = os.path.join(cache_dir, "databricks-dolly-15k.jsonl")
-            download(DOLLY_URL, path)
-            pairs.extend(load_dolly(path))
 
     pairs = dedupe_pairs(pairs)
     if max_pairs and max_pairs > 0:
@@ -94,6 +123,33 @@ def download_and_convert(
 
     write_pairs(out, pairs)
     return pairs
+
+
+def resolve_source(source, hf_file=None, data_format=None):
+    key = source.lower()
+    if key in KNOWN_HF_SOURCES and not hf_file and not data_format:
+        return dict(KNOWN_HF_SOURCES[key])
+    if "/" not in source:
+        known = ", ".join(sorted(KNOWN_HF_SOURCES))
+        raise ValueError(f"Unknown source '{source}'. Known sources: {known}")
+    if not hf_file or not data_format:
+        raise ValueError("Custom Hugging Face sources require --hf-file and --format")
+    return {
+        "repo_id": source,
+        "file": hf_file,
+        "format": data_format,
+        "cache_name": None,
+    }
+
+
+def download_source(spec, cache_dir="data/raw", revision="main"):
+    cache_name = spec.get("cache_name")
+    if cache_name:
+        path = os.path.join(cache_dir, cache_name)
+        url = f"https://huggingface.co/datasets/{spec['repo_id']}/resolve/{revision}/{spec['file']}"
+        download(url, path)
+        return path
+    return download_hf_file(spec["repo_id"], spec["file"], cache_dir=cache_dir, revision=revision)
 
 
 def download_hf_file(repo_id, filename, cache_dir="data/raw", revision="main"):

@@ -40,13 +40,13 @@ Best option: download real online dialogue data.
 This downloads DailyDialog from Hugging Face and converts dialogue turns into `data/pairs.tsv`:
 
 ```bash
-python -m diffusion_chatbot.download_data --source dailydialog --out data/pairs.tsv
+python -m diffusion_chatbot.download_data --source ConvLab/dailydialog --out data/pairs.tsv
 ```
 
 For more instruction-style question/answer data too:
 
 ```bash
-python -m diffusion_chatbot.download_data --source both --out data/pairs.tsv
+python -m diffusion_chatbot.download_data --source databricks/databricks-dolly-15k --out data/pairs.tsv
 ```
 
 Raw downloads are cached in `data/raw/`. `data/pairs.tsv` and `data/raw/` are ignored by git because they can be large.
@@ -81,7 +81,7 @@ python -m diffusion_chatbot.train --data data/pairs.tsv --out runs/basic --steps
 One command can pull Hugging Face data and train:
 
 ```bash
-python -m diffusion_chatbot.train_hf --source dailydialog --out runs/basic
+python -m diffusion_chatbot.train_hf --source ConvLab/dailydialog --out runs/basic
 ```
 
 Mixed DailyDialog + Dolly:
@@ -93,13 +93,13 @@ python -m diffusion_chatbot.train_hf --source both --out runs/basic
 Custom Hugging Face JSONL dataset:
 
 ```bash
-python -m diffusion_chatbot.train_hf --hf-dataset databricks/databricks-dolly-15k --hf-file databricks-dolly-15k.jsonl --format jsonl --prompt-field instruction --response-field response --out runs/basic
+python -m diffusion_chatbot.train_hf --source owner/dataset-name --hf-file file.jsonl --format jsonl --prompt-field prompt --response-field response --out runs/basic
 ```
 
 Test the full pipeline without training:
 
 ```bash
-python -m diffusion_chatbot.train_hf --source dailydialog --max-pairs 128 --dry-run
+python -m diffusion_chatbot.train_hf --source ConvLab/dailydialog --max-pairs 128 --dry-run
 ```
 
 ## Preview Diffusion
