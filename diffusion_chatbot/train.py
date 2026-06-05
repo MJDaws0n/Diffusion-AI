@@ -5,15 +5,16 @@ import time
 import numpy as np
 
 from .config import ModelConfig
-from .data import build_arrays, read_pairs
+from .data import build_arrays, encode_pairs, read_pairs
 from .diffusion import MaskDiffusion
-from .model import AdamW, SimpleDenoiser
+from .model import AdamW, SimpleDenoiser, load_optimizer_state
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Train pure NumPy masked-diffusion chatbot.")
     parser.add_argument("--data", default="data/pairs.tsv")
     parser.add_argument("--out", default="runs/basic")
+    parser.add_argument("--resume", help="Checkpoint path to continue training from.")
     parser.add_argument("--steps", type=int, default=5000)
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--lr", type=float, default=3e-3)
@@ -30,34 +31,43 @@ def main(argv=None):
     parser.add_argument("--dry-run", action="store_true", help="Validate one forward pass only; no training/update/save.")
     args = parser.parse_args(argv)
 
-    config = ModelConfig(
-        vocab_size=args.vocab_size,
-        max_prompt_tokens=args.max_prompt_tokens,
-        max_response_tokens=args.max_response_tokens,
-        embed_dim=args.embed_dim,
-        hidden_dim=args.hidden_dim,
-        diffusion_steps=args.diffusion_steps,
-        seed=args.seed,
-    )
     rng = np.random.default_rng(args.seed)
 
     pairs = read_pairs(args.data)
-    tokenizer, prompt_ids, response_ids = build_arrays(pairs, config)
-    config.vocab_size = tokenizer.vocab_size
-    invalid_sample_ids = [
-        tokenizer.pad_id,
-        tokenizer.mask_id,
-        tokenizer.bos_id,
-        tokenizer.sep_id,
-        tokenizer.unk_id,
-    ]
-    model = SimpleDenoiser(
-        config,
-        pad_id=tokenizer.pad_id,
-        mask_id=tokenizer.mask_id,
-        invalid_sample_ids=invalid_sample_ids,
-        rng=rng,
-    )
+    start_step = 0
+    resume_meta = None
+    if args.resume:
+        model, tokenizer, resume_meta = SimpleDenoiser.load(args.resume)
+        config = model.config
+        prompt_ids, response_ids = encode_pairs(pairs, tokenizer, config)
+        start_step = int(resume_meta.get("extra", {}).get("step", 0))
+        print(f"resumed model from {args.resume} at step={start_step}")
+    else:
+        config = ModelConfig(
+            vocab_size=args.vocab_size,
+            max_prompt_tokens=args.max_prompt_tokens,
+            max_response_tokens=args.max_response_tokens,
+            embed_dim=args.embed_dim,
+            hidden_dim=args.hidden_dim,
+            diffusion_steps=args.diffusion_steps,
+            seed=args.seed,
+        )
+        tokenizer, prompt_ids, response_ids = build_arrays(pairs, config)
+        config.vocab_size = tokenizer.vocab_size
+        invalid_sample_ids = [
+            tokenizer.pad_id,
+            tokenizer.mask_id,
+            tokenizer.bos_id,
+            tokenizer.sep_id,
+            tokenizer.unk_id,
+        ]
+        model = SimpleDenoiser(
+            config,
+            pad_id=tokenizer.pad_id,
+            mask_id=tokenizer.mask_id,
+            invalid_sample_ids=invalid_sample_ids,
+            rng=rng,
+        )
     diffusion = MaskDiffusion(steps=config.diffusion_steps)
 
     batch = make_batch(prompt_ids, response_ids, args.batch_size, diffusion, tokenizer, rng)
@@ -71,10 +81,16 @@ def main(argv=None):
 
     os.makedirs(args.out, exist_ok=True)
     opt = AdamW(model.params(), lr=args.lr, grad_clip=args.grad_clip)
+    if args.resume:
+        if load_optimizer_state(args.resume, opt):
+            print("resumed optimizer state")
+        else:
+            print("optimizer state not found; continuing with fresh optimizer")
     started = time.time()
     ema_loss = None
 
-    for step in range(1, args.steps + 1):
+    for local_step in range(1, args.steps + 1):
+        step = start_step + local_step
         batch = make_batch(prompt_ids, response_ids, args.batch_size, diffusion, tokenizer, rng)
         loss, grads = model.loss_and_grads(*batch)
         opt.step(model.params(), grads)
@@ -82,16 +98,17 @@ def main(argv=None):
 
         if step == 1 or step % args.log_every == 0:
             elapsed = time.time() - started
-            steps_per_sec = step / max(elapsed, 1e-9)
+            steps_per_sec = local_step / max(elapsed, 1e-9)
             print(f"step={step} loss={loss:.4f} ema_loss={ema_loss:.4f} steps_per_sec={steps_per_sec:.2f}")
 
         if step % args.save_every == 0:
             path = os.path.join(args.out, "model.npz")
-            model.save(path, tokenizer, extra={"step": step, "loss": loss})
+            model.save(path, tokenizer, extra={"step": step, "loss": loss}, optimizer=opt)
             print(f"saved {path}")
 
     path = os.path.join(args.out, "model.npz")
-    model.save(path, tokenizer, extra={"step": args.steps, "loss": loss})
+    final_step = start_step + args.steps
+    model.save(path, tokenizer, extra={"step": final_step, "loss": loss}, optimizer=opt)
     print(f"saved {path}")
 
 

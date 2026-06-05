@@ -23,6 +23,7 @@ def main(argv=None):
     parser.add_argument("--context-field", default="")
 
     parser.add_argument("--out", default="runs/basic")
+    parser.add_argument("--resume", help="Checkpoint path to continue training from.")
     parser.add_argument("--steps", type=int, default=20000)
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--lr", type=float, default=0.001)
@@ -74,6 +75,8 @@ def main(argv=None):
         "--log-every", str(args.log_every),
         "--save-every", str(args.save_every),
     ]
+    if args.resume:
+        train_args.extend(["--resume", args.resume])
     if args.dry_run:
         train_args.append("--dry-run")
     train_main(train_args)

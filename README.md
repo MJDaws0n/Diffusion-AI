@@ -76,12 +76,24 @@ The small `data/sample_pairs.tsv` file is only for tests and dry runs.
 python -m diffusion_chatbot.train --data data/pairs.tsv --out runs/basic --steps 20000 --batch-size 128 --lr 0.001 --vocab-size 4096 --max-prompt-tokens 40 --max-response-tokens 40
 ```
 
+Continue from a checkpoint:
+
+```bash
+python -m diffusion_chatbot.train --data data/pairs.tsv --out runs/basic --resume runs/basic/model.npz --steps 5000 --batch-size 128 --lr 0.001
+```
+
 ## Download And Train
 
 One command can pull Hugging Face data and train:
 
 ```bash
 python -m diffusion_chatbot.train_hf --source ConvLab/dailydialog --out runs/basic
+```
+
+Continue Hugging Face training from a checkpoint:
+
+```bash
+python -m diffusion_chatbot.train_hf --source ConvLab/dailydialog --out runs/basic --resume runs/basic/model.npz --steps 5000
 ```
 
 Mixed DailyDialog + Dolly:

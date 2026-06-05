@@ -38,6 +38,29 @@ class AdamW:
             v_hat = self.v[name] / (1.0 - self.beta2 ** self.t)
             param -= self.lr * m_hat / (np.sqrt(v_hat) + self.eps)
 
+    def state_arrays(self):
+        arrays = {"opt_t": np.asarray(self.t, dtype=np.int64)}
+        for name in self.m:
+            arrays[f"opt_m_{name}"] = self.m[name]
+            arrays[f"opt_v_{name}"] = self.v[name]
+        return arrays
+
+    def load_state_arrays(self, arrays):
+        if "opt_t" not in arrays:
+            return False
+        for name in self.m:
+            m_name = f"opt_m_{name}"
+            v_name = f"opt_v_{name}"
+            if m_name not in arrays or v_name not in arrays:
+                return False
+            if arrays[m_name].shape != self.m[name].shape or arrays[v_name].shape != self.v[name].shape:
+                return False
+        self.t = int(arrays["opt_t"])
+        for name in self.m:
+            self.m[name][...] = arrays[f"opt_m_{name}"]
+            self.v[name][...] = arrays[f"opt_v_{name}"]
+        return True
+
 
 def clip_grad_norm(grads, max_norm):
     total_sq = 0.0
@@ -213,7 +236,7 @@ class SimpleDenoiser:
             logits[..., self.invalid_sample_ids] = -1e9
         return logits
 
-    def save(self, path, tokenizer, extra=None):
+    def save(self, path, tokenizer, extra=None, optimizer=None):
         meta = {
             "config": self.config.to_dict(),
             "pad_id": self.pad_id,
@@ -221,8 +244,12 @@ class SimpleDenoiser:
             "invalid_sample_ids": self.invalid_sample_ids,
             "tokenizer": tokenizer.to_json(),
             "extra": extra or {},
+            "optimizer_saved": optimizer is not None,
         }
-        np.savez_compressed(path, meta=json.dumps(meta), **self.params())
+        arrays = dict(self.params())
+        if optimizer is not None:
+            arrays.update(optimizer.state_arrays())
+        np.savez_compressed(path, meta=json.dumps(meta), **arrays)
 
     @classmethod
     def load(cls, path):
@@ -239,3 +266,8 @@ class SimpleDenoiser:
             for name, param in model.params().items():
                 param[...] = data[name]
         return model, tokenizer, meta
+
+
+def load_optimizer_state(path, optimizer):
+    with np.load(path, allow_pickle=False) as data:
+        return optimizer.load_state_arrays(data)
