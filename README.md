@@ -31,17 +31,30 @@ For NVIDIA GPU training, install CUDA CuPy too:
 pip install -r requirements-cuda.txt
 ```
 
+If you already installed the old GPU requirements and see `libnvrtc.so.12` missing:
+
+```bash
+pip uninstall -y cupy cupy-cuda11x cupy-cuda12x
+pip install -r requirements-cuda.txt
+```
+
 If your CUDA install needs CUDA 11 instead of CUDA 12:
 
 ```bash
 pip install -r requirements.txt
-pip install cupy-cuda11x
+pip install "cupy-cuda11x[ctk]"
 ```
 
 Check GPU access:
 
 ```bash
 python -c "import cupy as cp; print(cp.cuda.runtime.getDeviceCount())"
+```
+
+Also test CuPy kernel compilation:
+
+```bash
+python -c "import cupy as cp; x=cp.arange(8); print((x != 2).sum())"
 ```
 
 Windows:

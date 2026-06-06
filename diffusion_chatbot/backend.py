@@ -22,6 +22,19 @@ def get_backend(device="auto"):
             if device == "auto":
                 return np, "cpu"
             raise RuntimeError("CUDA requested but no NVIDIA GPU was found.")
+        try:
+            probe = cp.arange(2)
+            _ = (probe != 1).sum()
+            cp.cuda.Stream.null.synchronize()
+        except Exception as exc:
+            if device == "auto":
+                return np, "cpu"
+            raise RuntimeError(
+                "CUDA requested and GPU was found, but CuPy could not compile/run a CUDA kernel. "
+                "Install CUDA component wheels with `pip install \"cupy-cuda12x[ctk]\"` "
+                "or install a matching CUDA Toolkit. Original error: "
+                f"{exc}"
+            ) from exc
         return cp, "cuda"
     raise ValueError("device must be cpu, cuda, or auto")
 
