@@ -103,3 +103,19 @@ def asnumpy(value):
 
 def scalar(value):
     return asnumpy(value).item()
+
+
+def synchronize(xp):
+    if getattr(xp, "__name__", "") == "cupy":
+        xp.cuda.Stream.null.synchronize()
+
+
+def backend_report(xp, device):
+    if device != "cuda":
+        return "device=cpu"
+    props = xp.cuda.runtime.getDeviceProperties(0)
+    name = props.get("name", b"unknown")
+    if isinstance(name, bytes):
+        name = name.decode("utf-8", errors="replace")
+    free, total = xp.cuda.runtime.memGetInfo()
+    return f"device=cuda name={name} free_vram_gb={free / 1024**3:.2f} total_vram_gb={total / 1024**3:.2f}"

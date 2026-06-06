@@ -63,6 +63,12 @@ Also test CuPy kernel compilation:
 python -c "from diffusion_chatbot.backend import get_backend; cp, device = get_backend('cuda'); x=cp.arange(8); print(device, (x != 2).sum())"
 ```
 
+Benchmark the backend:
+
+```bash
+python -m diffusion_chatbot.bench_device --device cuda
+```
+
 Windows:
 
 ```powershell

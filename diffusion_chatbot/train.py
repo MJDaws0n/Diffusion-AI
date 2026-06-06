@@ -4,6 +4,7 @@ import time
 
 import numpy as np
 
+from .backend import backend_report, synchronize
 from .config import ModelConfig
 from .data import build_arrays, encode_pairs, read_pairs
 from .diffusion import MaskDiffusion
@@ -70,7 +71,7 @@ def main(argv=None):
             rng=rng,
             device=args.device,
         )
-    print(f"device={model.device}")
+    print(backend_report(model.xp, model.device))
     diffusion = MaskDiffusion(steps=config.diffusion_steps)
 
     batch = make_batch(prompt_ids, response_ids, args.batch_size, diffusion, tokenizer, rng)
@@ -100,6 +101,7 @@ def main(argv=None):
         ema_loss = loss if ema_loss is None else 0.98 * ema_loss + 0.02 * loss
 
         if step == 1 or step % args.log_every == 0:
+            synchronize(model.xp)
             elapsed = time.time() - started
             steps_per_sec = local_step / max(elapsed, 1e-9)
             print(f"step={step} loss={loss:.4f} ema_loss={ema_loss:.4f} steps_per_sec={steps_per_sec:.2f}")
