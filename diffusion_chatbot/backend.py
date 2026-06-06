@@ -1,3 +1,9 @@
+import ctypes
+import glob
+import os
+import site
+import sys
+
 import numpy as np
 
 
@@ -12,6 +18,7 @@ def get_backend(device="auto"):
             if device == "auto":
                 return np, "cpu"
             raise RuntimeError("CUDA requested but CuPy is not installed. Install cupy-cuda12x or cupy-cuda11x.")
+        _preload_nvidia_cuda_wheels()
         try:
             count = cp.cuda.runtime.getDeviceCount()
         except Exception as exc:
@@ -37,6 +44,42 @@ def get_backend(device="auto"):
             ) from exc
         return cp, "cuda"
     raise ValueError("device must be cpu, cuda, or auto")
+
+
+def _preload_nvidia_cuda_wheels():
+    # NVIDIA's PyPI CUDA component wheels put shared libraries under
+    # site-packages/nvidia/*/lib. Some Linux setups do not expose that path to
+    # dlopen, so CuPy sees the GPU but fails when loading libnvrtc.so.12.
+    lib_patterns = [
+        "nvidia/cuda_nvrtc/lib/libnvrtc-builtins.so*",
+        "nvidia/cuda_nvrtc/lib/libnvrtc.so*",
+    ]
+    for pattern in lib_patterns:
+        for path in _find_site_library_paths(pattern):
+            try:
+                ctypes.CDLL(path, mode=ctypes.RTLD_GLOBAL)
+            except OSError:
+                pass
+
+
+def _find_site_library_paths(pattern):
+    roots = []
+    try:
+        roots.extend(site.getsitepackages())
+    except AttributeError:
+        pass
+    try:
+        roots.append(site.getusersitepackages())
+    except AttributeError:
+        pass
+    roots.extend(sys.path)
+
+    found = []
+    for root in roots:
+        if not root:
+            continue
+        found.extend(glob.glob(os.path.join(root, pattern)))
+    return sorted(set(found))
 
 
 def array_module(value):
