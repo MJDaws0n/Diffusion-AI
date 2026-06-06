@@ -1,2 +1,4 @@
 -r requirements.txt
-cupy-cuda12x[ctk]>=13,<14
+cupy-cuda12x>=13,<14
+nvidia-cuda-nvrtc-cu12>=12,<13
+nvidia-cuda-runtime-cu12>=12,<13

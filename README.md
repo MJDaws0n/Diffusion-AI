@@ -42,7 +42,7 @@ If your CUDA install needs CUDA 11 instead of CUDA 12:
 
 ```bash
 pip install -r requirements.txt
-pip install "cupy-cuda11x[ctk]"
+pip install cupy-cuda11x
 ```
 
 Check GPU access:
@@ -54,7 +54,7 @@ python -c "import cupy as cp; print(cp.cuda.runtime.getDeviceCount())"
 Also test CuPy kernel compilation:
 
 ```bash
-python -c "import cupy as cp; x=cp.arange(8); print((x != 2).sum())"
+python -c "from diffusion_chatbot.backend import get_backend; cp, device = get_backend('cuda'); x=cp.arange(8); print(device, (x != 2).sum())"
 ```
 
 Windows:
