@@ -15,7 +15,7 @@ hello [MASK] are [MASK]
 hello how are you
 ```
 
-This is a toy model. It uses pure NumPy, no diffusion libraries, and local synthetic training data.
+This is a toy model. It uses NumPy on CPU, optional CuPy for NVIDIA GPU training, no diffusion libraries, and local or Hugging Face training data.
 
 ## Setup
 
@@ -23,6 +23,25 @@ This is a toy model. It uses pure NumPy, no diffusion libraries, and local synth
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+```
+
+For NVIDIA GPU training, install CUDA CuPy too:
+
+```bash
+pip install -r requirements-cuda.txt
+```
+
+If your CUDA install needs CUDA 11 instead of CUDA 12:
+
+```bash
+pip install -r requirements.txt
+pip install cupy-cuda11x
+```
+
+Check GPU access:
+
+```bash
+python -c "import cupy as cp; print(cp.cuda.runtime.getDeviceCount())"
 ```
 
 Windows:
@@ -76,10 +95,16 @@ The small `data/sample_pairs.tsv` file is only for tests and dry runs.
 python -m diffusion_chatbot.train --data data/pairs.tsv --out runs/basic --steps 20000 --batch-size 128 --lr 0.001 --vocab-size 4096 --max-prompt-tokens 40 --max-response-tokens 40
 ```
 
+NVIDIA GPU training:
+
+```bash
+python -m diffusion_chatbot.train --device cuda --data data/pairs.tsv --out runs/basic --steps 20000 --batch-size 128 --lr 0.001 --vocab-size 4096 --max-prompt-tokens 40 --max-response-tokens 40
+```
+
 Continue from a checkpoint:
 
 ```bash
-python -m diffusion_chatbot.train --data data/pairs.tsv --out runs/basic --resume runs/basic/model.npz --steps 5000 --batch-size 128 --lr 0.001
+python -m diffusion_chatbot.train --device cuda --data data/pairs.tsv --out runs/basic --resume runs/basic/model.npz --steps 5000 --batch-size 128 --lr 0.001
 ```
 
 ## Download And Train
@@ -87,7 +112,7 @@ python -m diffusion_chatbot.train --data data/pairs.tsv --out runs/basic --resum
 One command can pull Hugging Face data and train:
 
 ```bash
-python -m diffusion_chatbot.train_hf --source ConvLab/dailydialog --out runs/basic
+python -m diffusion_chatbot.train_hf --device cuda --source ConvLab/dailydialog --out runs/basic
 ```
 
 Continue Hugging Face training from a checkpoint:

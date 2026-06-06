@@ -24,6 +24,7 @@ def main(argv=None):
 
     parser.add_argument("--out", default="runs/basic")
     parser.add_argument("--resume", help="Checkpoint path to continue training from.")
+    parser.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto")
     parser.add_argument("--steps", type=int, default=20000)
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--lr", type=float, default=0.001)
@@ -61,6 +62,7 @@ def main(argv=None):
     train_args = [
         "--data", args.pairs_out,
         "--out", args.out,
+        "--device", args.device,
         "--steps", str(args.steps),
         "--batch-size", str(args.batch_size),
         "--lr", str(args.lr),

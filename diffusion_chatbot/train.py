@@ -11,10 +11,11 @@ from .model import AdamW, SimpleDenoiser, load_optimizer_state
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Train pure NumPy masked-diffusion chatbot.")
+    parser = argparse.ArgumentParser(description="Train NumPy/CuPy masked-diffusion chatbot.")
     parser.add_argument("--data", default="data/pairs.tsv")
     parser.add_argument("--out", default="runs/basic")
     parser.add_argument("--resume", help="Checkpoint path to continue training from.")
+    parser.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto")
     parser.add_argument("--steps", type=int, default=5000)
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--lr", type=float, default=3e-3)
@@ -37,7 +38,7 @@ def main(argv=None):
     start_step = 0
     resume_meta = None
     if args.resume:
-        model, tokenizer, resume_meta = SimpleDenoiser.load(args.resume)
+        model, tokenizer, resume_meta = SimpleDenoiser.load(args.resume, device=args.device)
         config = model.config
         prompt_ids, response_ids = encode_pairs(pairs, tokenizer, config)
         start_step = int(resume_meta.get("extra", {}).get("step", 0))
@@ -67,7 +68,9 @@ def main(argv=None):
             mask_id=tokenizer.mask_id,
             invalid_sample_ids=invalid_sample_ids,
             rng=rng,
+            device=args.device,
         )
+    print(f"device={model.device}")
     diffusion = MaskDiffusion(steps=config.diffusion_steps)
 
     batch = make_batch(prompt_ids, response_ids, args.batch_size, diffusion, tokenizer, rng)

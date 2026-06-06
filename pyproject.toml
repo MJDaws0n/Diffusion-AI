@@ -1,7 +1,7 @@
 [project]
 name = "diffusion-chatbot"
 version = "0.1.0"
-description = "Pure NumPy masked-diffusion toy chatbot."
+description = "Masked-diffusion toy chatbot with NumPy CPU and optional CuPy CUDA."
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
@@ -11,6 +11,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "pytest>=8",
+]
+cuda = [
+  "cupy-cuda12x>=13,<14",
 ]
 
 [tool.pytest.ini_options]
