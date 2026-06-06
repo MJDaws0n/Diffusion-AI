@@ -38,7 +38,7 @@ def get_backend(device="auto"):
                 return np, "cpu"
             raise RuntimeError(
                 "CUDA requested and GPU was found, but CuPy could not compile/run a CUDA kernel. "
-                "Install CUDA component wheels with `pip install \"cupy-cuda12x[ctk]\"` "
+                "Install CUDA component wheels with `pip install -r requirements-cuda.txt` "
                 "or install a matching CUDA Toolkit. Original error: "
                 f"{exc}"
             ) from exc
@@ -49,10 +49,13 @@ def get_backend(device="auto"):
 def _preload_nvidia_cuda_wheels():
     # NVIDIA's PyPI CUDA component wheels put shared libraries under
     # site-packages/nvidia/*/lib. Some Linux setups do not expose that path to
-    # dlopen, so CuPy sees the GPU but fails when loading libnvrtc.so.12.
+    # dlopen, so CuPy sees the GPU but fails when loading CUDA component libs.
     lib_patterns = [
+        "nvidia/cuda_runtime/lib/libcudart.so*",
         "nvidia/cuda_nvrtc/lib/libnvrtc-builtins.so*",
         "nvidia/cuda_nvrtc/lib/libnvrtc.so*",
+        "nvidia/cublas/lib/libcublasLt.so*",
+        "nvidia/cublas/lib/libcublas.so*",
     ]
     for pattern in lib_patterns:
         for path in _find_site_library_paths(pattern):

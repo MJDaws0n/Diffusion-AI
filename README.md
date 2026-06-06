@@ -38,6 +38,12 @@ pip uninstall -y cupy cupy-cuda11x cupy-cuda12x
 pip install -r requirements-cuda.txt
 ```
 
+If you see `libcublas.so.12` missing, run:
+
+```bash
+pip install -r requirements-cuda.txt
+```
+
 If your CUDA install needs CUDA 11 instead of CUDA 12:
 
 ```bash
