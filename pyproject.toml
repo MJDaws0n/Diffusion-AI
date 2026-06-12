@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Masked-diffusion toy chatbot with NumPy CPU and optional CuPy CUDA."
 readme = "README.md"
 requires-python = ">=3.9"
+license = { file = "LICENSE" }
 dependencies = [
   "numpy>=1.24,<3",
 ]

@@ -184,3 +184,14 @@ python -m diffusion_chatbot.chat --ckpt runs/basic/model.npz --show-steps
 python -m pytest -q
 python -m diffusion_chatbot.train --data data/sample_pairs.tsv --out runs/dry --dry-run
 ```
+
+## License
+
+This project is licensed under the PolyForm Noncommercial License 1.0.0.
+
+You can use, copy, modify, and share it for personal, research, experiment,
+education, hobby, and other non-commercial purposes. Commercial use is not
+allowed. See [LICENSE](LICENSE) for the full terms.
+
+Training datasets keep their own licenses, listed in the data source notes
+above.
