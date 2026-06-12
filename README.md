@@ -2,6 +2,8 @@
 
 Small Python chatbot that uses masked diffusion for text.
 
+Read the project paper: [Text Diffusion as a Language Model](papers/text_diffusion_as_llm.md).
+
 It starts with masked reply tokens:
 
 ```text
